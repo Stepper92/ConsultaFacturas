@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Facturas</title>
+    <style>
+        /* Variables de colores: Modo oscuro y detalles institucionales */
+        :root {
+            --bg-color: #001524;
+            --container-bg: #003153; /* Azul Prusia */
+            --accent-color: #C60C30; /* Rojo */
+            --text-color: #ffffff;
+            --input-bg: #001f35;
+            --border-color: #004578;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 10px;
+        }
+
+        h1 { margin: 0; font-size: 1.8rem; }
+
+        button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+        }
+
+        button:hover { background-color: #a00a27; }
+
+        /* Buscador */
+        .search-container {
+            margin-bottom: 20px;
+        }
+
+        #searchInput {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            box-sizing: border-box;
+        }
+
+        /* Tabla de resultados */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: var(--container-bg);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th { background-color: #00223b; font-weight: bold; }
+        tr:hover { background-color: #00406b; }
+
+        /* Modal (Ventana emergente) */
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 1000; 
+            left: 0; top: 0; 
+            width: 100%; height: 100%; 
+            background-color: rgba(0, 0, 0, 0.7); 
+            justify-content: center; 
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: var(--container-bg);
+            padding: 20px 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border: 1px solid var(--accent-color);
+        }
+
+        .modal-content h2 { margin-top: 0; }
+
+        .form-group { margin-bottom: 15px; }
+
+        .form-group label { display: block; margin-bottom: 5px; font-size: 0.9rem; }
+
+        .form-group input, .form-group select {
+            width: 100%; padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            background-color: var(--input-bg);
+            color: white; box-sizing: border-box;
+        }
+
+        .cuil-group { display: flex; gap: 10px; }
+        .cuil-group input { text-align: center; }
+        
+        .modal-actions {
+            display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;
+        }
+
+        .btn-cancel { background-color: #555; }
+        .btn-cancel:hover { background-color: #444; }
+        
+        #loading { text-align: center; padding: 20px; display: none; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Gestión de Facturas</h1>
+        <button id="btnOpenModal">+ Cargar Factura</button>
+    </header>
+
+    <main>
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Buscar por CUIL, DNI, Apellido, Mes, Año, Nº Factura...">
+        </div>
+
+        <div id="loading">Cargando base de datos...</div>
+
+        <table id="facturasTable">
+            <thead>
+                <tr>
+                    <th>Apellido y Nombre</th>
+                    <th>CUIL</th>
+                    <th>Fecha</th>
+                    <th>Nº Factura</th>
+                    <th>Mes</th>
+                    <th>Año</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <!-- Los resultados se inyectan acá mediante JavaScript -->
+            </tbody>
+        </table>
+    </main>
+
+    <!-- Modal de Carga de Factura -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <h2>Ingresar Nueva Factura</h2>
+            <form id="uploadForm">
+                <div class="form-group cuil-group">
+                    <div style="flex: 1;"><label>Apellido</label><input type="text" id="apellido" required></div>
+                    <div style="flex: 1;"><label>Nombre</label><input type="text" id="nombre" required></div>
+                </div>
+
+                <label>CUIL (PRE - DNI - POST)</label>
+                <div class="form-group cuil-group">
+                    <input type="number" id="pre" placeholder="20" style="flex: 1;" required>
+                    <input type="number" id="dni" placeholder="12345678" style="flex: 3;" required>
+                    <input type="number" id="post" placeholder="4" style="flex: 1;" required>
+                </div>
+
+                <div class="form-group cuil-group">
+                    <div style="flex: 1;"><label>Fecha Factura</label><input type="date" id="fechaFactura" required></div>
+                    <div style="flex: 1;"><label>Nº Factura</label><input type="number" id="numeroFactura" required></div>
+                </div>
+
+                <div class="form-group cuil-group">
+                    <div style="flex: 1;">
+                        <label>Mes Facturado</label>
+                        <select id="mesFacturado" required>
+                            <option value="ENERO">Enero</option>
+                            <option value="FEBRERO">Febrero</option>
+                            <option value="MARZO">Marzo</option>
+                            <option value="ABRIL">Abril</option>
+                            <option value="MAYO">Mayo</option>
+                            <option value="JUNIO">Junio</option>
+                            <option value="JULIO">Julio</option>
+                            <option value="AGOSTO">Agosto</option>
+                            <option value="SEPTIEMBRE">Septiembre</option>
+                            <option value="OCTUBRE">Octubre</option>
+                            <option value="NOVIEMBRE">Noviembre</option>
+                            <option value="DICIEMBRE">Diciembre</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1;"><label>Año Facturado</label><input type="number" id="anoFacturado" value="2026" required></div>
+                </div>
+
+                <div class="form-group">
+                    <label>Clave de Autorización</label>
+                    <input type="password" id="clave" placeholder="Ingrese la clave secreta" required>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" id="btnCloseModal" class="btn-cancel">Cancelar</button>
+                    <button type="submit" id="btnSubmit">Guardar Factura</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // CONFIGURACIÓN DE URLS
+        // ==========================================
+        
+        // 1. REEMPLAZA ESTO: URL de tu planilla de Google Sheets publicada como TSV (Valores separados por tabulaciones)
+        const URL_TSV_PLANILLA = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTCxwf6QplXk5_ft67iR-vpVm2M1_fB81WmquhoB0ggW_jN6jFUFCVJzFAQtN7L8DTUnyRj88z1DIH4/pub?output=tsv"; 
+
+        // 2. URL de tu Backend (Google Apps Script) para escribir datos
+        const URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxGEIP3ULuejFCwQWfhn9pfiOJ15JHYlW5wILP26loBo0PCedB7j_HfYnVJj_NeA2JmTg/exec";
+
+        let facturasData = []; // Aquí se guardará la base de datos en memoria
+
+        // ==========================================
+        // LÓGICA DE BÚSQUEDA Y LECTURA
+        // ==========================================
+        
+        // Cargar datos al iniciar
+        document.addEventListener('DOMContentLoaded', () => {
+            if(URL_TSV_PLANILLA !== "ACA_VA_EL_LINK_TSV_DE_TU_PLANILLA") {
+                cargarDatos();
+            } else {
+                document.getElementById('loading').innerText = "⚠️ Por favor, ingresa el link TSV en el código JS.";
+                document.getElementById('loading').style.display = "block";
+            }
+        });
+
+        async function cargarDatos() {
+            document.getElementById('loading').style.display = "block";
+            try {
+                const response = await fetch(URL_TSV_PLANILLA);
+                const text = await response.text();
+                
+                // Parsear TSV
+                const filas = text.split('\n').map(fila => fila.split('\t'));
+                // Ignorar la primera fila (encabezados) y guardar las demás
+                facturasData = filas.slice(1).filter(row => row.length > 5); // Filtra filas vacías
+                
+                mostrarResultados(facturasData);
+            } catch (error) {
+                console.error("Error al cargar la planilla:", error);
+                document.getElementById('loading').innerText = "❌ Error al cargar los datos. Revisa la conexión.";
+            } finally {
+                document.getElementById('loading').style.display = "none";
+            }
+        }
+
+        // Buscador en Vivo (Live Search)
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase().trim();
+            
+            const resultadosFiltrados = facturasData.filter(row => {
+                // row: [Apellido, Nombre, PRE, DNI, POST, Fecha Factura, Nº Factura, Mes, Año]
+                if(row.length < 9) return false;
+
+                const apellido = row[0].toLowerCase();
+                const nombre = row[1].toLowerCase();
+                const dni = row[3];
+                const cuilCompleto = row[2] + row[3] + row[4]; // PRE + DNI + POST pegados
+                const numFactura = row[6];
+                const mes = row[7].toLowerCase();
+                const ano = row[8];
+
+                // Concatenamos todo en un "súper string" para buscar de forma flexible
+                const searchableText = `${apellido} ${nombre} ${dni} ${cuilCompleto} ${numFactura} ${mes} ${ano}`;
+                
+                return searchableText.includes(query);
+            });
+
+            mostrarResultados(resultadosFiltrados);
+        });
+
+        function mostrarResultados(datos) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = ''; // Limpiar tabla
+
+            datos.forEach(row => {
+                if(row.length < 9) return;
+                
+                const cuilFormateado = `${row[2]}-${row[3]}-${row[4]}`;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${row[0]}</strong>, ${row[1]}</td>
+                    <td>${cuilFormateado}</td>
+                    <td>${row[5]}</td>
+                    <td>${row[6]}</td>
+                    <td>${row[7]}</td>
+                    <td>${row[8]}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ==========================================
+        // LÓGICA DEL MODAL Y FORMULARIO (CARGA)
+        // ==========================================
+        
+        const modal = document.getElementById('uploadModal');
+        const btnOpen = document.getElementById('btnOpenModal');
+        const btnClose = document.getElementById('btnCloseModal');
+        const form = document.getElementById('uploadForm');
+        const btnSubmit = document.getElementById('btnSubmit');
+
+        // Abrir/Cerrar Modal
+        btnOpen.onclick = () => modal.style.display = "flex";
+        btnClose.onclick = () => { modal.style.display = "none"; form.reset(); };
+        window.onclick = (e) => { if (e.target == modal) { modal.style.display = "none"; form.reset(); } };
+
+        // Enviar datos
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault(); // Evitar que la página se recargue
+            
+            // Empaquetar los datos del formulario
+            const payload = {
+                apellido: document.getElementById('apellido').value,
+                nombre: document.getElementById('nombre').value,
+                pre: document.getElementById('pre').value,
+                dni: document.getElementById('dni').value,
+                post: document.getElementById('post').value,
+                fechaFactura: document.getElementById('fechaFactura').value,
+                numeroFactura: document.getElementById('numeroFactura').value,
+                mesFacturado: document.getElementById('mesFacturado').value,
+                anoFacturado: document.getElementById('anoFacturado').value,
+                clave: document.getElementById('clave').value
+            };
+
+            btnSubmit.innerText = "Cargando...";
+            btnSubmit.disabled = true;
+
+            try {
+                // Enviamos los datos al Apps Script
+                const response = await fetch(URL_APPS_SCRIPT, {
+                    method: 'POST',
+                    // Usamos text/plain para evitar bloqueos de CORS en Apps Script
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+
+                const resultado = await response.json();
+
+                if(resultado.exito) {
+                    alert("¡Éxito! " + resultado.mensaje);
+                    form.reset();
+                    modal.style.display = "none";
+                    // Recargar datos para mostrar la nueva factura
+                    cargarDatos(); 
+                } else {
+                    alert("Error: " + resultado.mensaje); // Posiblemente clave incorrecta
+                }
+            } catch (error) {
+                console.error("Error al enviar los datos:", error);
+                alert("Hubo un problema de conexión al intentar enviar los datos.");
+            } finally {
+                btnSubmit.innerText = "Guardar Factura";
+                btnSubmit.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
